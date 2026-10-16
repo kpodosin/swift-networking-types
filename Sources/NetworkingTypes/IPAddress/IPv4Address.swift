@@ -66,10 +66,9 @@ public struct IPv4Address: Sendable {
     /// The numeric value of the address.
     /// For example the numeric value of `127.0.0.1` is `0x7F00_0001`.
     public var numericValue: UInt32 {
-        UInt32(self.bytes[0]) << 24
-            | UInt32(self.bytes[1]) << 16
-            | UInt32(self.bytes[2]) << 8
-            | UInt32(self.bytes[3])
+        self.bytes.span.bytes
+            .unsafeLoadUnaligned(as: UInt32.self)
+            .bigEndian
     }
 
     /// Calls `body` with a `Span` of the address's 4 bytes, in network byte order.

@@ -87,11 +87,9 @@ public struct IPv6Address: Sendable {
     /// The numeric value of the address.
     /// For example the numeric value of `2001:db8::1` is `0x2001_0DB8_0000_0000_0000_0000_0000_0001`.
     public var numericValue: UInt128 {
-        var value: UInt128 = 0
-        for index in self.bytes.indices {
-            value = value << 8 | UInt128(self.bytes[index])
-        }
-        return value
+        self.bytes.span.bytes
+            .unsafeLoadUnaligned(as: UInt128.self)
+            .bigEndian
     }
 
     /// Calls `body` with a `Span` of the address's 16 bytes, in network byte order.
