@@ -16,15 +16,16 @@
 /// as defined in [IETF RFC 4291].
 ///
 /// [IETF RFC 4291]: https://datatracker.ietf.org/doc/html/rfc4291
-@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
+@available(anyAppleOS 26.0, *)
 public struct IPv6Address: Sendable {
     /// The 16 bytes of the address, in network byte order.
     /// For example `::1` is fifteen `0` bytes followed by a `1`.
-    private let bytes: [16 of UInt8]
+    public let bytes: [16 of UInt8]
 
     /// Creates a new address from its 8 16-bit segments, most significant segment first.
     /// This matches how IPv6 addresses are written, so for example
     /// `IPv6Address(0x2001, 0x0DB8, 0, 0, 0, 0, 0, 1)` is `2001:db8::1`.
+    @export(implementation)
     public init(
         _ first: UInt16,
         _ second: UInt16,
@@ -44,6 +45,12 @@ public struct IPv6Address: Sendable {
     }
 
     /// Creates a new address from its 16 bytes, in network byte order.
+    /// For example `IPv6Address(bytes: other.bytes)` is a copy of `other`.
+    public init(bytes: [16 of UInt8]) {
+        self.bytes = bytes
+    }
+
+    /// Creates a new address from its 16 bytes, in network byte order.
     /// Returns `nil` unless `bytes` contains exactly 16 bytes.
     public init?(bytes: Span<UInt8>) {
         guard bytes.count == 16 else {
@@ -52,62 +59,47 @@ public struct IPv6Address: Sendable {
         self.bytes = .init { index in bytes[index] }
     }
 
-    /// Creates a new address from its numeric value, in host byte order.
-    /// For example `IPv6Address(numericValue: 1)` is `::1`.
-    public init(numericValue: UInt128) {
+    /// Creates a new address from an integer with the given byte order.
+    ///
+    /// By default the integer is the address's numeric value, so for example
+    /// `IPv6Address(numericValue: 1)` is `::1`. For an integer in network byte order, pass `.bigEndian`.
+    ///
+    /// - Parameters:
+    ///   - numericValue: The integer to create the address from.
+    ///   - byteOrder: The byte order of the integer.
+    @available(anyAppleOS 27.0, *)
+    public init(numericValue: UInt128, byteOrder: ByteOrder = .native) {
+        let value =
+            byteOrder == .bigEndian
+            ? UInt128(bigEndian: numericValue) : UInt128(littleEndian: numericValue)
         self.bytes = .init { index in
             // Index `0` is the most significant byte, so it comes from the top 8 bits.
-            UInt8(truncatingIfNeeded: numericValue >> (8 * (15 - index)))
+            UInt8(truncatingIfNeeded: value >> (8 * (15 - index)))
         }
     }
 
-    /// Creates a new address from four 32-bit integers in network byte order.
-    ///
-    /// In memory, each integer holds 4 of the address's bytes in order, so their numeric values depend on
-    /// the platform's byte order. To create an address from a number, use `init(numericValue:)` instead.
-    public init(networkOrder: (UInt32, UInt32, UInt32, UInt32)) {
-        let words: [4 of UInt32] = [
-            UInt32(bigEndian: networkOrder.0),
-            UInt32(bigEndian: networkOrder.1),
-            UInt32(bigEndian: networkOrder.2),
-            UInt32(bigEndian: networkOrder.3),
-        ]
-        self.bytes = .init { index in
-            // Each word holds 4 bytes, most significant first.
-            UInt8(truncatingIfNeeded: words[index / 4] >> (8 * (3 - index % 4)))
-        }
-    }
-
-    /// The byte at `index`, in network byte order. `index` must be in `0..<16`.
-    /// For example the byte at index `15` of `::1` is `1`.
-    public subscript(byte index: Int) -> UInt8 {
-        self.bytes[index]
-    }
-
-    /// The numeric value of the address.
+    /// The numeric value of the address, in the platform's byte order.
     /// For example the numeric value of `2001:db8::1` is `0x2001_0DB8_0000_0000_0000_0000_0000_0001`.
+    /// To create the address again, pass this value to `init(numericValue:byteOrder:)`.
     public var numericValue: UInt128 {
         self.bytes.span.bytes
             .unsafeLoadUnaligned(as: UInt128.self)
             .bigEndian
     }
-
-    /// Calls `body` with a `Span` of the address's 16 bytes, in network byte order.
-    public func withBytes<Result>(_ body: (Span<UInt8>) throws -> Result) rethrows -> Result {
-        try body(self.bytes.span)
-    }
 }
 
-@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
+@available(anyAppleOS 26.0, *)
 extension IPv6Address {
     /// The loopback address, `::1`.
-    public static let loopback = IPv6Address(0, 0, 0, 0, 0, 0, 0, 1)
+    @export(implementation)
+    public static var loopback: IPv6Address { IPv6Address(0, 0, 0, 0, 0, 0, 0, 1) }
 
     /// The unspecified address, `::`.
-    public static let any = IPv6Address(0, 0, 0, 0, 0, 0, 0, 0)
+    @export(implementation)
+    public static var any: IPv6Address { IPv6Address(0, 0, 0, 0, 0, 0, 0, 0) }
 }
 
-@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
+@available(anyAppleOS 26.0, *)
 extension IPv6Address: LosslessStringConvertible {
     /// The textual representation of the address, as recommended by [IETF RFC 5952].
     ///
@@ -218,8 +210,8 @@ extension IPv6Address: LosslessStringConvertible {
                 guard let ipv4 = IPv4Address(String(group)) else {
                     return nil
                 }
-                segments.append(UInt16(ipv4[byte: 0]) << 8 | UInt16(ipv4[byte: 1]))
-                segments.append(UInt16(ipv4[byte: 2]) << 8 | UInt16(ipv4[byte: 3]))
+                segments.append(UInt16(ipv4.bytes[0]) << 8 | UInt16(ipv4.bytes[1]))
+                segments.append(UInt16(ipv4.bytes[2]) << 8 | UInt16(ipv4.bytes[3]))
             } else {
                 guard let segment = Self.parseHexSegment(group) else {
                     return nil
@@ -270,7 +262,16 @@ extension IPv6Address: LosslessStringConvertible {
     }
 }
 
-@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
+@available(anyAppleOS 26.0, *)
+extension IPv6Address: CustomDebugStringConvertible {
+    /// A textual representation of the address that includes its type, for debugging.
+    /// For example `"IPv6Address(2001:db8::1)"`.
+    public var debugDescription: String {
+        "IPv6Address(\(self.description))"
+    }
+}
+
+@available(anyAppleOS 26.0, *)
 extension IPv6Address: Hashable {
     public static func == (lhs: IPv6Address, rhs: IPv6Address) -> Bool {
         for index in lhs.bytes.indices where lhs.bytes[index] != rhs.bytes[index] {

@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// An IP address, either IPv4 or IPv6.
-@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
+@available(anyAppleOS 26.0, *)
 public enum IPAddress: Sendable, Hashable {
     case v4(IPv4Address)
     case v6(IPv6Address)
@@ -37,7 +37,7 @@ public enum IPAddress: Sendable, Hashable {
     }
 }
 
-@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
+@available(anyAppleOS 26.0, *)
 extension IPAddress: LosslessStringConvertible {
     /// The textual representation of the address.
     public var description: String {
@@ -58,6 +58,20 @@ extension IPAddress: LosslessStringConvertible {
             self = .v6(address)
         } else {
             return nil
+        }
+    }
+}
+
+@available(anyAppleOS 26.0, *)
+extension IPAddress: CustomDebugStringConvertible {
+    /// A textual representation of the address that includes its type and version, for debugging.
+    /// For example `"IPAddress.v4(IPv4Address(192.168.1.1))"`.
+    public var debugDescription: String {
+        switch self {
+        case .v4(let address):
+            return "IPAddress.v4(\(address.debugDescription))"
+        case .v6(let address):
+            return "IPAddress.v6(\(address.debugDescription))"
         }
     }
 }

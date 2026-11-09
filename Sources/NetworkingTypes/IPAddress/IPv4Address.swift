@@ -16,16 +16,24 @@
 /// as defined in [IETF RFC 791].
 ///
 /// [IETF RFC 791]: https://datatracker.ietf.org/doc/html/rfc791
-@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
+@available(anyAppleOS 26.0, *)
 public struct IPv4Address: Sendable {
     /// The 4 bytes of the address, in network byte order.
     /// For example `192.168.1.1` is `[192, 168, 1, 1]`.
-    private let bytes: [4 of UInt8]
+    public let bytes: [4 of UInt8]
 
     /// Creates a new address from its 4 bytes, in network byte order.
     /// For example `IPv4Address(192, 168, 1, 1)` is `192.168.1.1`.
+    @export(implementation)
     public init(_ first: UInt8, _ second: UInt8, _ third: UInt8, _ fourth: UInt8) {
         self.bytes = [first, second, third, fourth]
+    }
+
+    /// Creates a new address from its 4 bytes, in network byte order.
+    /// For example `IPv4Address(bytes: [192, 168, 1, 1])` is `192.168.1.1`,
+    /// and `IPv4Address(bytes: other.bytes)` is a copy of `other`.
+    public init(bytes: [4 of UInt8]) {
+        self.bytes = bytes
     }
 
     /// Creates a new address from its 4 bytes, in network byte order.
@@ -37,59 +45,54 @@ public struct IPv4Address: Sendable {
         self.bytes = .init { index in bytes[index] }
     }
 
-    /// Creates a new address from its numeric value, in host byte order.
-    /// For example `IPv4Address(numericValue: 0x7F00_0001)` is `127.0.0.1`.
-    public init(numericValue: UInt32) {
+    /// Creates a new address from an integer with the given byte order.
+    ///
+    /// By default the integer is the address's numeric value, so for example
+    /// `IPv4Address(numericValue: 0x7F00_0001)` is `127.0.0.1`. For an integer in network byte order,
+    /// pass `.bigEndian`.
+    ///
+    /// - Parameters:
+    ///   - numericValue: The integer to create the address from.
+    ///   - byteOrder: The byte order of the integer.
+    @available(anyAppleOS 27.0, *)
+    public init(numericValue: UInt32, byteOrder: ByteOrder = .native) {
+        let value =
+            byteOrder == .bigEndian
+            ? UInt32(bigEndian: numericValue) : UInt32(littleEndian: numericValue)
         self.init(
-            UInt8(truncatingIfNeeded: numericValue >> 24),
-            UInt8(truncatingIfNeeded: numericValue >> 16),
-            UInt8(truncatingIfNeeded: numericValue >> 8),
-            UInt8(truncatingIfNeeded: numericValue)
+            UInt8(truncatingIfNeeded: value >> 24),
+            UInt8(truncatingIfNeeded: value >> 16),
+            UInt8(truncatingIfNeeded: value >> 8),
+            UInt8(truncatingIfNeeded: value)
         )
     }
 
-    /// Creates a new address from a 32-bit integer in network byte order.
-    ///
-    /// In memory, the integer holds the address's 4 bytes in order, so its numeric value depends
-    /// on the platform's byte order. To create an address from a number like `0x7F00_0001`, use
-    /// `init(numericValue:)` instead.
-    public init(networkOrder: UInt32) {
-        self.init(numericValue: UInt32(bigEndian: networkOrder))
-    }
-
-    /// The byte at `index`, in network byte order. `index` must be in `0..<4`.
-    /// For example the byte at index `0` of `192.168.1.1` is `192`.
-    public subscript(byte index: Int) -> UInt8 {
-        self.bytes[index]
-    }
-
-    /// The numeric value of the address.
+    /// The numeric value of the address, in the platform's byte order.
     /// For example the numeric value of `127.0.0.1` is `0x7F00_0001`.
+    /// To create the address again, pass this value to `init(numericValue:byteOrder:)`.
     public var numericValue: UInt32 {
         self.bytes.span.bytes
             .unsafeLoadUnaligned(as: UInt32.self)
             .bigEndian
     }
-
-    /// Calls `body` with a `Span` of the address's 4 bytes, in network byte order.
-    public func withBytes<Result>(_ body: (Span<UInt8>) throws -> Result) rethrows -> Result {
-        try body(self.bytes.span)
-    }
 }
 
-@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
+@available(anyAppleOS 26.0, *)
 extension IPv4Address {
     /// The loopback address, `127.0.0.1`.
-    public static let loopback = IPv4Address(127, 0, 0, 1)
+    @export(implementation)
+    public static var loopback: IPv4Address { IPv4Address(127, 0, 0, 1) }
 
     /// The unspecified address, `0.0.0.0`.
-    public static let any = IPv4Address(0, 0, 0, 0)
+    @export(implementation)
+    public static var any: IPv4Address { IPv4Address(0, 0, 0, 0) }
 
     /// The limited broadcast address, `255.255.255.255`.
-    public static let broadcast = IPv4Address(255, 255, 255, 255)
+    @export(implementation)
+    public static var broadcast: IPv4Address { IPv4Address(255, 255, 255, 255) }
 }
 
-@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
+@available(anyAppleOS 26.0, *)
 extension IPv4Address: LosslessStringConvertible {
     /// The textual representation of the address, in dotted-decimal notation.
     /// For example `"192.168.1.1"`.
@@ -139,7 +142,16 @@ extension IPv4Address: LosslessStringConvertible {
     }
 }
 
-@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
+@available(anyAppleOS 26.0, *)
+extension IPv4Address: CustomDebugStringConvertible {
+    /// A textual representation of the address that includes its type, for debugging.
+    /// For example `"IPv4Address(192.168.1.1)"`.
+    public var debugDescription: String {
+        "IPv4Address(\(self.description))"
+    }
+}
+
+@available(anyAppleOS 26.0, *)
 extension IPv4Address: Hashable {
     public static func == (lhs: IPv4Address, rhs: IPv4Address) -> Bool {
         for index in lhs.bytes.indices where lhs.bytes[index] != rhs.bytes[index] {

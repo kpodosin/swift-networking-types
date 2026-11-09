@@ -13,45 +13,50 @@
 import NetworkingTypes
 import Testing
 
-#if canImport(Darwin)
-import Darwin
-#endif
-
 @Suite
 struct IPAddressTests {
     @Test func `IPv4Address stores its bytes in order`() {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
+        guard #available(anyAppleOS 26.0, *) else { return }
         let address = IPv4Address(192, 168, 1, 1)
-        #expect(address[byte: 0] == 192)
-        #expect(address[byte: 1] == 168)
-        #expect(address[byte: 2] == 1)
-        #expect(address[byte: 3] == 1)
+        #expect(address.bytes[0] == 192)
+        #expect(address.bytes[1] == 168)
+        #expect(address.bytes[2] == 1)
+        #expect(address.bytes[3] == 1)
     }
 
-    @Test func `IPv4Address converts to and from its numeric value`() {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
-        let loopback = IPv4Address(127, 0, 0, 1)
-        #expect(loopback.numericValue == 0x7F00_0001)
-        #expect(IPv4Address(numericValue: 0x7F00_0001) == loopback)
-        #expect(IPv4Address(numericValue: 0xC0A8_0101) == IPv4Address(192, 168, 1, 1))
-        #expect(IPv4Address(numericValue: .max) == IPv4Address(255, 255, 255, 255))
-        #expect(IPv4Address(numericValue: 0) == IPv4Address(0, 0, 0, 0))
+    @Test func `IPv4Address gives its numeric value`() {
+        guard #available(anyAppleOS 26.0, *) else { return }
+        #expect(IPv4Address.loopback.numericValue == 0x7F00_0001)
+        #expect(IPv4Address(192, 168, 1, 1).numericValue == 0xC0A8_0101)
+        #expect(IPv4Address.broadcast.numericValue == .max)
+        #expect(IPv4Address.any.numericValue == 0)
     }
 
-    @Test func `IPv4Address is created from a network-order integer`() {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
-        // Like `in_addr.s_addr`, the integer holds the address's bytes in order in memory.
+    @Test func `IPv4Address is created from an integer with a byte order`() {
+        guard #available(anyAppleOS 27.0, *) else { return }
+        // Integers that are plain numbers, in the platform's own byte order.
+        #expect(IPv4Address(numericValue: 0x7F00_0001, byteOrder: .native) == .loopback)
+        #expect(IPv4Address(numericValue: 0xC0A8_0101, byteOrder: .native) == IPv4Address(192, 168, 1, 1))
+        #expect(IPv4Address(numericValue: .max, byteOrder: .native) == .broadcast)
+        #expect(IPv4Address(numericValue: 0, byteOrder: .native) == .any)
+
+        // The same address as integers in each byte order, which holds on any platform.
+        #expect(IPv4Address(numericValue: UInt32(0x7F00_0001).bigEndian, byteOrder: .bigEndian) == .loopback)
+        #expect(IPv4Address(numericValue: UInt32(0x7F00_0001).littleEndian, byteOrder: .littleEndian) == .loopback)
+
+        // The default is the native byte order, so a plain number and the getter's value both work.
+        #expect(IPv4Address(numericValue: 0x7F00_0001) == .loopback)
+        #expect(IPv4Address(numericValue: 0x1234_5678) == IPv4Address(numericValue: 0x1234_5678, byteOrder: .native))
+        #expect(IPv4Address(numericValue: IPv4Address(192, 168, 1, 1).numericValue) == IPv4Address(192, 168, 1, 1))
+
+        // A big-endian integer holds the address's bytes in order in memory.
         var raw: UInt32 = 0
         withUnsafeMutableBytes(of: &raw) { $0.copyBytes(from: [192, 168, 1, 2] as [UInt8]) }
-        #expect(IPv4Address(networkOrder: raw) == IPv4Address(192, 168, 1, 2))
-
-        #expect(IPv4Address(networkOrder: UInt32(0x7F00_0001).bigEndian) == .loopback)
-        #expect(IPv4Address(networkOrder: 0) == .any)
-        #expect(IPv4Address(networkOrder: .max) == .broadcast)
+        #expect(IPv4Address(numericValue: raw, byteOrder: .bigEndian) == IPv4Address(192, 168, 1, 2))
     }
 
     @Test func `IPv4Address equality and hashing compare every byte`() {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
+        guard #available(anyAppleOS 26.0, *) else { return }
         let address = IPv4Address(10, 0, 0, 1)
         #expect(address == IPv4Address(10, 0, 0, 1))
         #expect(address != IPv4Address(10, 0, 0, 2))
@@ -60,55 +65,60 @@ struct IPAddressTests {
     }
 
     @Test func `IPv6Address splits segments into bytes in order`() {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
+        guard #available(anyAppleOS 26.0, *) else { return }
         let address = IPv6Address(0x2001, 0x0DB8, 0x1234, 0x5678, 0x9ABC, 0xDEF0, 0x0F0F, 0xFF01)
         let expected: [UInt8] = [
             0x20, 0x01, 0x0D, 0xB8, 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0, 0x0F, 0x0F, 0xFF, 0x01,
         ]
         for (index, byte) in expected.enumerated() {
-            #expect(address[byte: index] == byte)
+            #expect(address.bytes[index] == byte)
         }
     }
 
-    @Test func `IPv6Address converts to and from its numeric value`() {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
-        let documentation = IPv6Address(0x2001, 0x0DB8, 0, 0, 0, 0, 0, 1)
-        #expect(documentation.numericValue == 0x2001_0DB8_0000_0000_0000_0000_0000_0001)
-        #expect(IPv6Address(numericValue: 0x2001_0DB8_0000_0000_0000_0000_0000_0001) == documentation)
-        #expect(IPv6Address(numericValue: 1) == IPv6Address(0, 0, 0, 0, 0, 0, 0, 1))
-        #expect(IPv6Address(numericValue: 0) == IPv6Address(0, 0, 0, 0, 0, 0, 0, 0))
-        let all = IPv6Address(numericValue: .max)
-        #expect(all == IPv6Address(0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF))
-        #expect(all.numericValue == .max)
+    @Test func `IPv6Address gives its numeric value`() {
+        guard #available(anyAppleOS 26.0, *) else { return }
+        #expect(IPv6Address(0x2001, 0x0DB8, 0, 0, 0, 0, 0, 1).numericValue == 0x2001_0DB8_0000_0000_0000_0000_0000_0001)
+        #expect(IPv6Address.loopback.numericValue == 1)
+        #expect(IPv6Address.any.numericValue == 0)
+        #expect(IPv6Address(0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF).numericValue == .max)
 
         let mixed = IPv6Address(0x2001, 0x0DB8, 0x1234, 0x5678, 0x9ABC, 0xDEF0, 0x0F0F, 0xFF01)
         #expect(mixed.numericValue == 0x2001_0DB8_1234_5678_9ABC_DEF0_0F0F_FF01)
-        #expect(IPv6Address(numericValue: mixed.numericValue) == mixed)
     }
 
-    @Test func `IPv6Address is created from network-order integers`() {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
-        // Like `in6_addr`, the integers hold the address's bytes in order in memory.
-        let bytes: [UInt8] = [
-            0x20, 0x01, 0x0D, 0xB8, 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0, 0x0F, 0x0F, 0xFF, 0x01,
-        ]
-        var raw: (UInt32, UInt32, UInt32, UInt32) = (0, 0, 0, 0)
-        withUnsafeMutableBytes(of: &raw) { $0.copyBytes(from: bytes) }
-        #expect(
-            IPv6Address(networkOrder: raw)
-                == IPv6Address(0x2001, 0x0DB8, 0x1234, 0x5678, 0x9ABC, 0xDEF0, 0x0F0F, 0xFF01)
-        )
+    @Test func `IPv6Address is created from an integer with a byte order`() {
+        guard #available(anyAppleOS 27.0, *) else { return }
+        let documentation = IPv6Address(0x2001, 0x0DB8, 0, 0, 0, 0, 0, 1)
+        let mixed = IPv6Address(0x2001, 0x0DB8, 0x1234, 0x5678, 0x9ABC, 0xDEF0, 0x0F0F, 0xFF01)
 
-        #expect(IPv6Address(networkOrder: (0, 0, 0, UInt32(1).bigEndian)) == .loopback)
-        #expect(IPv6Address(networkOrder: (0, 0, 0, 0)) == .any)
-        #expect(IPv6Address(networkOrder: (.max, .max, .max, .max)).numericValue == .max)
+        // Integers that are plain numbers, in the platform's own byte order.
+        let documentationNumber: UInt128 = 0x2001_0DB8_0000_0000_0000_0000_0000_0001
+        #expect(IPv6Address(numericValue: documentationNumber, byteOrder: .native) == documentation)
+        #expect(IPv6Address(numericValue: 1, byteOrder: .native) == .loopback)
+        #expect(IPv6Address(numericValue: 0, byteOrder: .native) == .any)
+        #expect(IPv6Address(numericValue: .max, byteOrder: .native).numericValue == .max)
+        #expect(IPv6Address(numericValue: mixed.numericValue, byteOrder: .native) == mixed)
+
+        // The same address as integers in each byte order, which holds on any platform.
+        #expect(IPv6Address(numericValue: mixed.numericValue.bigEndian, byteOrder: .bigEndian) == mixed)
+        #expect(IPv6Address(numericValue: mixed.numericValue.littleEndian, byteOrder: .littleEndian) == mixed)
+
+        // The default is the native byte order, so a plain number and the getter's value both work.
+        #expect(IPv6Address(numericValue: 1) == .loopback)
+        #expect(IPv6Address(numericValue: mixed.numericValue) == mixed)
+
+        // A big-endian integer holds the address's bytes in order in memory.
+        var raw: UInt128 = 0
+        let mixedBytes = (0..<16).map { mixed.bytes[$0] }
+        withUnsafeMutableBytes(of: &raw) { $0.copyBytes(from: mixedBytes) }
+        #expect(IPv6Address(numericValue: raw, byteOrder: .bigEndian) == mixed)
     }
 
     @Test func `IPv6Address equality and hashing compare every byte`() {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
+        guard #available(anyAppleOS 26.0, *) else { return }
         let loopback = IPv6Address(0, 0, 0, 0, 0, 0, 0, 1)
         let unspecified = IPv6Address(0, 0, 0, 0, 0, 0, 0, 0)
-        #expect(loopback[byte: 15] == 1)
+        #expect(loopback.bytes[15] == 1)
         #expect(loopback == IPv6Address(0, 0, 0, 0, 0, 0, 0, 1))
         #expect(loopback != unspecified)
         #expect(loopback != IPv6Address(1, 0, 0, 0, 0, 0, 0, 1))
@@ -116,15 +126,28 @@ struct IPAddressTests {
     }
 
     @Test func `IPAddress distinguishes v4 and v6`() {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
+        guard #available(anyAppleOS 26.0, *) else { return }
         let v4 = IPAddress.v4(IPv4Address(127, 0, 0, 1))
         let v6 = IPAddress.v6(IPv6Address(0, 0, 0, 0, 0, 0, 0, 1))
         #expect(v4 == .v4(IPv4Address(127, 0, 0, 1)))
         #expect(v4 != v6)
     }
 
+    @Test func `Addresses are created from an InlineArray of bytes`() {
+        guard #available(anyAppleOS 26.0, *) else { return }
+        // An array literal creates an address directly, with no Optional to unwrap.
+        let v4: IPv4Address = IPv4Address(bytes: [192, 168, 1, 1])
+        #expect(v4 == IPv4Address(192, 168, 1, 1))
+        #expect(IPv4Address(bytes: v4.bytes) == v4)
+
+        let v6 = IPv6Address(0x2001, 0x0DB8, 0x1234, 0x5678, 0x9ABC, 0xDEF0, 0x0F0F, 0xFF01)
+        let copy: IPv6Address = IPv6Address(bytes: v6.bytes)
+        #expect(copy == v6)
+        #expect(IPv6Address(bytes: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]) == .loopback)
+    }
+
     @Test func `Addresses are created from a Span of exactly the right number of bytes`() {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
+        guard #available(anyAppleOS 26.0, *) else { return }
         let v4Bytes: [UInt8] = [192, 168, 1, 1]
         #expect(IPv4Address(bytes: v4Bytes.span) == IPv4Address(192, 168, 1, 1))
 
@@ -141,23 +164,25 @@ struct IPAddressTests {
         }
     }
 
-    @Test func `withBytes gives the bytes in network byte order`() {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
+    @Test func `bytes gives the bytes in network byte order, and a Span of them`() {
+        guard #available(anyAppleOS 26.0, *) else { return }
         let v4 = IPv4Address(192, 168, 1, 2)
-        #expect(v4.withBytes { span in (0..<span.count).map { span[$0] } } == [192, 168, 1, 2])
-        #expect(v4.withBytes { IPv4Address(bytes: $0) } == v4)
+        let v4Span = v4.bytes.span
+        #expect((0..<v4Span.count).map { v4Span[$0] } == [192, 168, 1, 2])
+        #expect(IPv4Address(bytes: v4.bytes.span) == v4)
 
         let v6 = IPv6Address(0x2001, 0x0DB8, 0x1234, 0x5678, 0x9ABC, 0xDEF0, 0x0F0F, 0xFF01)
+        let v6Span = v6.bytes.span
         #expect(
-            v6.withBytes { span in (0..<span.count).map { span[$0] } } == [
+            (0..<v6Span.count).map { v6Span[$0] } == [
                 0x20, 0x01, 0x0D, 0xB8, 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0, 0x0F, 0x0F, 0xFF, 0x01,
             ]
         )
-        #expect(v6.withBytes { IPv6Address(bytes: $0) } == v6)
+        #expect(IPv6Address(bytes: v6.bytes.span) == v6)
     }
 
     @Test func `Static addresses have the expected values`() {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
+        guard #available(anyAppleOS 26.0, *) else { return }
         #expect(IPv4Address.loopback == IPv4Address(127, 0, 0, 1))
         #expect(IPv4Address.any == IPv4Address(0, 0, 0, 0))
         #expect(IPv4Address.broadcast == IPv4Address(255, 255, 255, 255))
@@ -175,7 +200,7 @@ struct IPAddressTests {
         ] as [(String, [UInt8])]
     )
     func `IPv4Address parses and prints dotted-decimal text`(text: String, bytes: [UInt8]) {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
+        guard #available(anyAppleOS 26.0, *) else { return }
         let address = IPv4Address(bytes[0], bytes[1], bytes[2], bytes[3])
         #expect(IPv4Address(text) == address)
         #expect(address.description == text)
@@ -189,12 +214,12 @@ struct IPAddressTests {
         ]
     )
     func `IPv4Address rejects invalid text`(text: String) {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
+        guard #available(anyAppleOS 26.0, *) else { return }
         #expect(IPv4Address(text) == nil)
     }
 
     @Test func `IPv4Address round-trips every byte value through text in every position`() {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
+        guard #available(anyAppleOS 26.0, *) else { return }
         for value in UInt8.min...UInt8.max {
             for address in [
                 IPv4Address(value, 1, 2, 3), IPv4Address(1, value, 2, 3),
@@ -236,7 +261,7 @@ struct IPAddressTests {
         ] as [([UInt16], String)]
     )
     func `IPv6Address prints and parses its RFC 5952 textual representation`(segments: [UInt16], text: String) {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
+        guard #available(anyAppleOS 26.0, *) else { return }
         let address = IPv6Address(
             segments[0],
             segments[1],
@@ -276,7 +301,7 @@ struct IPAddressTests {
         ] as [(String, [UInt16])]
     )
     func `IPv6Address parses other valid textual representations`(text: String, segments: [UInt16]) {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
+        guard #available(anyAppleOS 26.0, *) else { return }
         let address = IPv6Address(
             segments[0],
             segments[1],
@@ -312,14 +337,14 @@ struct IPAddressTests {
         ]
     )
     func `IPv6Address rejects invalid text`(text: String) {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
+        guard #available(anyAppleOS 26.0, *) else { return }
         #expect(IPv6Address(text) == nil)
     }
 
     /// Prints and parses back all 256 combinations of zero and non-zero segments, using non-zero values
     /// `0xab` and `0xffff`. With `0xffff` some of these are IPv4-mapped, so they print in mixed notation.
     @Test func `IPv6Address round-trips every pattern of zero segments through text`() {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
+        guard #available(anyAppleOS 26.0, *) else { return }
         for nonZero: UInt16 in [0xAB, 0xFFFF] {
             for pattern in 0..<256 {
                 let segments: [UInt16] = (0..<8).map { pattern & (1 << $0) == 0 ? 0 : nonZero }
@@ -339,7 +364,7 @@ struct IPAddressTests {
     }
 
     @Test func `IPv6Address static addresses print as expected`() {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
+        guard #available(anyAppleOS 26.0, *) else { return }
         #expect(IPv6Address.loopback.description == "::1")
         #expect(IPv6Address.any.description == "::")
     }
@@ -347,7 +372,7 @@ struct IPAddressTests {
     /// Tries all 256 combinations of zero and non-zero segments, and checks each description against
     /// the RFC 5952 rules independently of how `description` is implemented.
     @Test func `IPv6Address compresses the longest zero run for every pattern of zero segments`() {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
+        guard #available(anyAppleOS 26.0, *) else { return }
 
         // Splits text like `"ab:0:ab"` into its segment values. Returns `-1` for any invalid segment.
         func segmentValues(of text: Substring) -> [Int] {
@@ -417,12 +442,9 @@ struct IPAddressTests {
             }
         }
     }
-}
 
-@Suite
-struct IPAddressEnumTests {
     @Test func `IPAddress parses either version`() {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
+        guard #available(anyAppleOS 26.0, *) else { return }
         #expect(IPAddress("192.168.1.1") == .v4(IPv4Address(192, 168, 1, 1)))
         #expect(IPAddress("2001:db8::1") == .v6(IPv6Address(0x2001, 0x0DB8, 0, 0, 0, 0, 0, 1)))
         #expect(IPAddress("::ffff:192.0.2.1") == .v6(IPv6Address(0, 0, 0, 0, 0, 0xFFFF, 0xC000, 0x0201)))
@@ -430,12 +452,12 @@ struct IPAddressEnumTests {
 
     @Test(arguments: ["", "1.2.3", "256.1.1.1", "1::2::3", "[::1]", "::1/128", "example.com"])
     func `IPAddress rejects text that is neither version`(text: String) {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
+        guard #available(anyAppleOS 26.0, *) else { return }
         #expect(IPAddress(text) == nil)
     }
 
     @Test func `IPAddress prints the address it holds`() {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
+        guard #available(anyAppleOS 26.0, *) else { return }
         #expect(IPAddress.v4(IPv4Address(192, 168, 1, 1)).description == "192.168.1.1")
         #expect(IPAddress.v6(IPv6Address(0x2001, 0x0DB8, 0, 0, 0, 0, 0, 1)).description == "2001:db8::1")
         for text in ["0.0.0.0", "10.0.0.1", "::", "::1", "fe80::1", "::ffff:10.0.0.1"] {
@@ -444,7 +466,7 @@ struct IPAddressEnumTests {
     }
 
     @Test func `IPAddress gives the address of the matching version only`() {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
+        guard #available(anyAppleOS 26.0, *) else { return }
         let v4 = IPAddress.v4(.loopback)
         let v6 = IPAddress.v6(.loopback)
         #expect(v4.ipv4 == .loopback)
@@ -452,21 +474,47 @@ struct IPAddressEnumTests {
         #expect(v6.ipv4 == nil)
         #expect(v6.ipv6 == .loopback)
     }
-}
 
-#if canImport(Darwin)
-@Suite
-struct IPAddressCInteropTests {
-    @Test func `Addresses are created from the integers in C address structs`() {
-        guard #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *) else { return }
-        var v4 = in_addr()
-        #expect(inet_pton(AF_INET, "192.0.2.1", &v4) == 1)
-        #expect(IPv4Address(networkOrder: v4.s_addr) == IPv4Address(192, 0, 2, 1))
+    @Test func `Addresses have a debug description that includes their type`() {
+        guard #available(anyAppleOS 26.0, *) else { return }
+        #expect(IPv4Address(192, 168, 1, 1).debugDescription == "IPv4Address(192.168.1.1)")
+        #expect(IPv4Address.loopback.debugDescription == "IPv4Address(127.0.0.1)")
+        #expect(IPv4Address.any.debugDescription == "IPv4Address(0.0.0.0)")
 
-        var v6 = in6_addr()
-        #expect(inet_pton(AF_INET6, "2001:db8::ffff:1", &v6) == 1)
-        let words = withUnsafeBytes(of: v6) { $0.loadUnaligned(as: (UInt32, UInt32, UInt32, UInt32).self) }
-        #expect(IPv6Address(networkOrder: words) == IPv6Address(0x2001, 0x0DB8, 0, 0, 0, 0, 0xFFFF, 1))
+        #expect(IPv6Address(0x2001, 0x0DB8, 0, 0, 0, 0, 0, 1).debugDescription == "IPv6Address(2001:db8::1)")
+        #expect(IPv6Address.loopback.debugDescription == "IPv6Address(::1)")
+        #expect(IPv6Address.any.debugDescription == "IPv6Address(::)")
+        #expect(
+            IPv6Address(0, 0, 0, 0, 0, 0xFFFF, 0xC000, 0x0201).debugDescription == "IPv6Address(::ffff:192.0.2.1)"
+        )
+    }
+
+    @Test func `IPAddress has a debug description that includes its version and address`() {
+        guard #available(anyAppleOS 26.0, *) else { return }
+        #expect(IPAddress.v4(.loopback).debugDescription == "IPAddress.v4(IPv4Address(127.0.0.1))")
+        #expect(IPAddress.v6(.loopback).debugDescription == "IPAddress.v6(IPv6Address(::1))")
+    }
+
+    @Test func `String(reflecting:) uses the debug description, including inside collections`() {
+        guard #available(anyAppleOS 26.0, *) else { return }
+        #expect(String(reflecting: IPv4Address.loopback) == "IPv4Address(127.0.0.1)")
+        #expect(String(reflecting: IPv6Address.loopback) == "IPv6Address(::1)")
+        #expect(String(reflecting: IPAddress("10.0.0.1")) == "Optional(IPAddress.v4(IPv4Address(10.0.0.1)))")
+        #expect(String(reflecting: [IPv4Address.loopback, .any]) == "[IPv4Address(127.0.0.1), IPv4Address(0.0.0.0)]")
+    }
+
+    /// `description` must stay plain, because parsing a printed address has to give the address back.
+    @Test func `description and string interpolation stay plain`() {
+        guard #available(anyAppleOS 26.0, *) else { return }
+        #expect(IPv4Address.loopback.description == "127.0.0.1")
+        #expect("\(IPv4Address.loopback)" == "127.0.0.1")
+        #expect(String(describing: IPv4Address.loopback) == "127.0.0.1")
+        #expect("\(IPv6Address.loopback)" == "::1")
+        #expect(String(describing: IPv6Address.loopback) == "::1")
+        #expect("\(IPAddress.v4(.loopback))" == "127.0.0.1")
+        #expect(IPAddress.v6(.loopback).description == "::1")
+
+        // An IPv6 address embedding an IPv4 address prints that address plainly, not with its type name.
+        #expect(IPv6Address(0, 0, 0, 0, 0, 0xFFFF, 0xC000, 0x0201).description == "::ffff:192.0.2.1")
     }
 }
-#endif
