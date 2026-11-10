@@ -12,6 +12,7 @@
 
 /// An IP address, either IPv4 or IPv6.
 @available(anyAppleOS 26.0, *)
+@frozen
 public enum IPAddress: Sendable, Hashable {
     case v4(IPv4Address)
     case v6(IPv6Address)
