@@ -20,7 +20,7 @@
 public struct IPv6Address: Sendable {
     /// The 16 bytes of the address, in network byte order.
     /// For example `::1` is fifteen `0` bytes followed by a `1`.
-    public let bytes: [16 of UInt8]
+    public var bytes: [16 of UInt8]
 
     /// Creates a new address from its 8 16-bit segments, most significant segment first.
     /// This matches how IPv6 addresses are written, so for example
@@ -83,7 +83,7 @@ public struct IPv6Address: Sendable {
     /// To create the address again, pass this value to `init(numericValue:byteOrder:)`.
     public var numericValue: UInt128 {
         self.bytes.span.bytes
-            .unsafeLoadUnaligned(as: UInt128.self)
+            .load(fromByteOffset: 0, as: UInt128.self)
             .bigEndian
     }
 }
@@ -161,7 +161,7 @@ extension IPv6Address: LosslessStringConvertible {
     /// are not part of an address and are rejected.
     public init?(_ description: String) {
         let segments: [UInt16]
-        if let compression = description.firstRange(of: "::") {
+        if let compression = Self.firstDoubleColon(in: description) {
             // An IPv4 suffix can only come at the very end, so never before the `::`.
             guard
                 let head = Self.parseSegments(description[..<compression.lowerBound], allowsIPv4Suffix: false),
@@ -192,6 +192,20 @@ extension IPv6Address: LosslessStringConvertible {
             segments[6],
             segments[7]
         )
+    }
+
+    /// The range of the first `::` in `text`, if there is one.
+    private static func firstDoubleColon(in text: String) -> Range<String.Index>? {
+        let utf8 = text.utf8
+        var search = utf8.startIndex
+        while let colon = utf8[search...].firstIndex(of: UInt8(ascii: ":")) {
+            let next = utf8.index(after: colon)
+            if next < utf8.endIndex, utf8[next] == UInt8(ascii: ":") {
+                return colon..<utf8.index(after: next)
+            }
+            search = next
+        }
+        return nil
     }
 
     /// Parses `:`-separated segments, such as either side of a `::`.

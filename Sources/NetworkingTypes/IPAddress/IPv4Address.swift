@@ -20,7 +20,7 @@
 public struct IPv4Address: Sendable {
     /// The 4 bytes of the address, in network byte order.
     /// For example `192.168.1.1` is `[192, 168, 1, 1]`.
-    public let bytes: [4 of UInt8]
+    public var bytes: [4 of UInt8]
 
     /// Creates a new address from its 4 bytes, in network byte order.
     /// For example `IPv4Address(192, 168, 1, 1)` is `192.168.1.1`.
@@ -72,7 +72,7 @@ public struct IPv4Address: Sendable {
     /// To create the address again, pass this value to `init(numericValue:byteOrder:)`.
     public var numericValue: UInt32 {
         self.bytes.span.bytes
-            .unsafeLoadUnaligned(as: UInt32.self)
+            .load(fromByteOffset: 0, as: UInt32.self)
             .bigEndian
     }
 }
